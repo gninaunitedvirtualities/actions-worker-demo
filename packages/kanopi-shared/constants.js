@@ -10,7 +10,7 @@ const AWIPlantCodeByZipCode = {
 };
 
 const ShippingConditionsHeavy = {
-  P146: 'LT',
+  P146: "LT",
   P153: 'LT',
   P154: 'LT',
   P156: 'LT',
