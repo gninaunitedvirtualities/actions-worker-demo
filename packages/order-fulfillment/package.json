@@ -1,0 +1,18 @@
+{
+  "private": true,
+  "name": "order-fulfillment",
+  "version": "1.0.0",
+  "description": "Breaks up order line items into separate fulfillments",
+  "author": "BCG Digital Ventures",
+  "main": "./src/index.js",
+  "scripts": {
+    "dev": "wrangler dev",
+    "publish": "wrangler publish"
+  },
+  "dependencies": {
+    "kanopi-shared": "^1.0.0"
+  },
+  "devDependencies": {
+    "@cloudflare/wrangler": "^1.20.0"
+  }
+}

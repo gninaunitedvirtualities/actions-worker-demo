@@ -1,0 +1,13 @@
+{
+  "name": "kanopi-shared",
+  "version": "1.0.0",
+  "description": "Shared utilities for Kanopi workers",
+  "author": "BCG Digital Ventures",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest"
+  },
+  "devDependencies": {
+    "jest": "^29.3.1"
+  }
+}
