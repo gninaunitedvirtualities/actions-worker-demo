@@ -88,10 +88,6 @@ jobs:
     outputs:
       output1: ${{needs.create_tag.outputs.output2}}
     steps: 
-      - name: debug tag
-        shell: bash
-        run: |
-           echo "${{needs.create_tag.outputs.output2}}"
       - name: Checkout code
         uses: actions/checkout@master
       - name: Create Release
@@ -105,3 +101,113 @@ jobs:
           draft: false
           prerelease: false
 
+  deploy-production:
+    runs-on: ubuntu-latest
+    needs: create_release
+    outputs:
+      output1: ${{ needs.create_release.outputs.output1 }}
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: check out code
+        uses: actions/checkout@v3
+
+      - name: deubug
+        run: |
+            echo "${{ needs.create_release.outputs.output1 }}"
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Upgrade NPM
+        run: npm install -g npm
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm run packages:install
+
+  push-version-wiki:
+    runs-on: ubuntu-latest
+    needs: deploy-production
+    env:
+      GITHUB_TOKEN: ${{ secrets.github_token }}  
+    steps:       
+      - name: checkout repo
+        uses: actions/checkout@v3
+        with:
+          repository: ${{github.repository}}.wiki
+
+
+      - name: generate the version number
+        run: |
+            ls -al
+            var=$(cat Home.textile | grep PRODUCTION | cut -d":" -f2)
+
+            echo $var
+            sed -i -e "s/$var/\ ${{needs.deploy-production.outputs.output1}}/g" Home.textile
+            head -n 6 Home.textile > tmp.txt; mv tmp.txt Home.textile
+            cat Home.textile
+      
+       
+      - name: Commit files
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add .
+          git commit -m "Add changes"
+          git push
+
+
+  create-pull-request_dev:
+    runs-on: ubuntu-latest
+    needs: push-version-wiki
+    steps:
+
+      - name: check out code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          ref: master
+
+      - name: create a pull request on dev branch
+        uses: devops-infra/action-pull-request@v0.4.2
+        with:
+          github_token: ${{ secrets.REPO_SCOPED_TOKEN }}
+          source_branch: master
+          target_branch: develop
+          title: 'merging changes of production back to develop branch'
+          body: "**Automated pull request**"
+          draft: false
+          old_string: "<!-- Add your description here -->"
+          new_string: "** Automatic pull request**"
+          get_diff: true
+          ignore_users: "dependabot"
+
+  create-pull-request_release:
+    runs-on: ubuntu-latest
+    needs: push-version-wiki
+    steps:
+
+      - name: check out code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          ref: master
+
+      - name: create a pull request on release branch
+        uses: devops-infra/action-pull-request@v0.4.2
+        with:
+          github_token: ${{ secrets.REPO_SCOPED_TOKEN }}
+          source_branch: master
+          target_branch: release
+          title: 'merging changes of production back to release branch'
+          body: "**Automated pull request**"
+          draft: false
+          old_string: "<!-- Add your description here -->"
+          new_string: "** Automatic pull request**"
+          get_diff: true
+          ignore_users: "dependabot"
