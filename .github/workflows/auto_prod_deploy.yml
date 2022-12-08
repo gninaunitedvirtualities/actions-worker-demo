@@ -145,12 +145,12 @@ jobs:
       - name: generate the version number
         run: |
             ls -al
-            var=$(cat Home.textile | grep PRODUCTION | cut -d":" -f2)
+            var=$(cat Home.md | grep PRODUCTION | cut -d":" -f2)
 
             echo $var
-            sed -i -e "s/$var/\ ${{needs.deploy-production.outputs.output1}}/g" Home.textile
-            head -n 6 Home.textile > tmp.txt; mv tmp.txt Home.textile
-            cat Home.textile
+            sed -i -e "s/$var/\ ${{needs.deploy-production.outputs.output1}}/g" Home.md
+            head -n 6 Home.md > tmp.txt; mv tmp.txt Home.md
+            cat Home.md
       
        
       - name: Commit files
