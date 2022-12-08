@@ -25,7 +25,7 @@ jobs:
         id: previous_tag
         run: |
             ls -al
-            var=$(cat Home.textile | grep PRODUCTION | cut -d":" -f2 )
+            var=$(cat Home.md | grep PRODUCTION | cut -d":" -f2 )
             echo $var
             echo "::set-output name=tag_version::$(echo ${var})"
      
