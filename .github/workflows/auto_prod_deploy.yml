@@ -88,6 +88,10 @@ jobs:
     outputs:
       output1: ${{needs.create_tag.outputs.output2}}
     steps: 
+      - name: debug tag
+        shell: bash
+        run: |
+           echo "${{needs.create_tag.outputs.output2}}"
       - name: Checkout code
         uses: actions/checkout@master
       - name: Create Release
