@@ -81,3 +81,23 @@ jobs:
             fi
 
             echo "New Tag: ${newTag}"
+
+  create_release:
+    needs: create_tag
+    runs-on: ubuntu-latest
+    outputs:
+      output1: ${{needs.create_tag.outputs.output2}}
+    steps: 
+      - name: Checkout code
+        uses: actions/checkout@master
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@latest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
+        with:
+          tag_name: ${{needs.create_tag.outputs.output2}}
+          release_name: Production-${{needs.create_tag.outputs.output2}}
+          draft: false
+          prerelease: false
+
