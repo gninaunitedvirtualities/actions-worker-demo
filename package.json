@@ -12,7 +12,8 @@
     "packages:publish:sandbox": "lerna run publish -- --env sandbox",
     "packages:publish:prod": "lerna run publish -- --env prod",
     "lint": "prettier --check ./packages/**/*.js && eslint ./packages/**/*.js",
-    "format": "prettier --write ./packages/**/*.js && eslint --fix ./packages/**/*.js"
+    "format": "prettier --write ./packages/**/*.js && eslint --fix ./packages/**/*.js",
+    "prepare": "husky install"
   },
   "devDependencies": {
     "eslint": "^8.29.0",
