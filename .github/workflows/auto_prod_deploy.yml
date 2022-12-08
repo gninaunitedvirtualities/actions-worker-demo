@@ -61,7 +61,7 @@ jobs:
               null_value=0
               newTag="v${tag_array[0]}.${temp}.${null_value}"
               echo "latest-tag=v${tag_array[0]}.${temp}.${null_value}"  >> $GITHUB_ENV
-              echo "::set-output name=tag_version::$(echo ${newTag})"
+              echo "tag_version=${newTag}" >> $GITHUB_OUTPUT
             elif [[ "${version}" == "major" ]]
             then
               temp=${tag_array[0]}
@@ -69,7 +69,7 @@ jobs:
               echo "${temp}"
               newTag="v${temp}.${tag_array[1]}.${tag_array[2]}"
               echo "latest-tag=v${temp}.${tag_array[1]}.${tag_array[2]}" >> $GITHUB_ENV
-              echo "::set-output name=tag_version::$(echo ${newTag})"
+              echo "tag_version=${newTag}" >> $GITHUB_OUTPUT
             else
               temp=${tag_array[2]}
               ((temp=temp+1))
