@@ -1,0 +1,200 @@
+name: Deploy release!!
+on: 
+  push:
+    branches: 
+      - release
+
+jobs:
+  create_tag:
+    runs-on: ubuntu-latest
+    outputs:
+      output1: ${{ steps.previous_tag.outputs.tag_version }}
+      output2: ${{ steps.tag.outputs.tag_version }}
+    steps:        
+      - name: checkout repo
+        uses: actions/checkout@v3
+        with:
+          repository: ${{github.repository}}.wiki
+
+      - name: generate the version number
+        id: previous_tag
+        run: |
+            ls -al
+            var=$(cat Home.textile | grep SANDBOX| cut -d":" -f2 )
+            echo $var
+            echo "::set-output name=tag_version::$(echo ${var})"
+
+      - name: get pull-request-label
+        id: manual
+        uses: actions-ecosystem/action-get-merged-pull-request@v1.0.1
+        with:
+          github_token: ${{ secrets.github_token }}
+
+      - name: debug tag
+        shell: bash
+        run: |
+           echo "${{ steps.previous_tag.outputs.tag_version }}"
+
+      - name: create tag name
+        id: tag
+        shell: bash
+        run: |
+            echo "${{ steps.manual.outputs.labels }}"
+            version="${{ steps.manual.outputs.labels }}"
+            echo ${version}
+            echo "${{ steps.tag.outputs.tag_version }}"
+            tag=$(echo ${{ steps.previous_tag.outputs.tag_version }} | sed 's/release-v//')
+            IFS='.' read -r -a tag_array <<< "$tag"
+
+            if [[ "${version}"  == "minor" ]]
+            then
+              temp=${tag_array[1]}
+              ((temp=temp+1))
+              echo "${temp}"
+              nill_value=0
+              newTag="release-v${tag_array[0]}.${temp}.${nill_value}"
+              echo "::set-output name=tag_version::$(echo ${newTag})"
+            elif [[ "${version}" == "major" ]]
+            then
+              temp=${tag_array[0]}
+              ((temp=temp+1))
+              echo "${temp}"
+              newTag="release-v${temp}.${tag_array[1]}.${tag_array[2]}"
+              # echo "latest-tag=$ENV_PREFIX-v${temp}.${tag_array[1]}.${tag_array[2]}" >> $GITHUB_ENV
+              echo "::set-output name=tag_version::$(echo ${newTag})"
+            else
+              temp=${tag_array[2]}
+              ((temp=temp+1))
+              echo "${temp}"
+              newTag="release-v${tag_array[0]}.${tag_array[1]}.${temp}"
+              
+              # echo "latest-tag=$ENV_PREFIX-v${tag_array[0]}.${tag_array[1]}.${temp}" >> $GITHUB_ENV
+              echo "::set-output name=tag_version::$(echo ${newTag})"
+            fi
+
+            echo "New Tag: ${newTag}"
+
+  publish_tag:
+    needs: create_tag
+    runs-on: ubuntu-latest
+    outputs:
+      output1: ${{needs.create_tag.outputs.output2}}
+
+    steps: 
+      - name: Checkout branch
+        uses: actions/checkout@v3
+        with:
+          ref: release
+
+      - name: create tag
+        uses: tvdias/github-tagger@v0.0.1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{needs.create_tag.outputs.output2}}
+  
+  deploy_sandbox:
+    needs: publish_tag
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [16.x]
+    outputs:
+      output1: ${{needs.publish_tag.outputs.output1}}
+    steps: 
+      - name: deploy to sandbox
+        id: tag_name
+        run: |
+            echo "${{needs.publish_tag.outputs.output1}}"
+
+      - name: Checkout branch
+        uses: actions/checkout@v3
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Upgrade NPM
+        run: npm install -g npm
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm run packages:install
+
+      - name: create CLIENT_VERSION and RELEASE [SANDBOX]
+        run: |
+          timestamp=$(date +'%Y%m%d')
+          
+          var=$(cat packages/order-fulfillment/wrangler.toml | grep -A 12 'env.sandbox.vars' | grep CLIENT_VERSION)
+          sed -i -e "/env.sandbox.vars/,// s/$var/CLIENT_VERSION = \"${{needs.deploy_sandbox.outputs.output1}}\"/" packages/order-fulfillment/wrangler.toml
+          
+          var=$(cat packages/order-fulfillment/wrangler.toml | grep -A 12 'env.sandbox.vars' | grep RELEASE)
+          sed -i -e "/env.sandbox.vars/,// s/$var/RELEASE = \"${timestamp}\"/" packages/order-fulfillment/wrangler.toml
+
+      
+      - name: Deploy to Cloudflare workers [SANDBOX]
+        if: github.ref == 'refs/heads/release'
+        run: npm run packages:publish:sandbox
+        env:
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+
+
+  push-version-wiki:
+    runs-on: ubuntu-latest
+    needs: deploy_sandbox
+    outputs:
+      output1: ${{needs.deploy_sandbox.outputs.output1}}
+    env:
+      GITHUB_TOKEN: ${{ secrets.github_token }}
+      
+    steps:
+            
+      - name: checkout repo
+        uses: actions/checkout@v3
+        with:
+          repository: ${{github.repository}}.wiki
+
+      - name: generate the version number
+        run: |
+            var=$(cat Home.textile | grep SANDBOX | cut -d":" -f2)
+            echo $var
+            sed -i -e "s/$var/\ ${{needs.deploy_sandbox.outputs.output1}}/g" Home.textile
+            cat Home.textile
+      
+      - name: Commit files
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add .
+          git commit -m "Add changes"
+          git push
+
+
+  create-pull-request_dev:
+    runs-on: ubuntu-latest
+    needs: push-version-wiki
+    steps:
+
+      - name: check out code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          ref: release
+
+      - name: create a pull request on dev branch
+        uses: devops-infra/action-pull-request@v0.4.2
+        with:
+          github_token: ${{ secrets.REPO_SCOPED_TOKEN }}
+          source_branch: release
+          target_branch: develop
+          title: 'merging changes of release branch back to develop'
+          body: "**Automated pull request**"
+          draft: false
+          old_string: "<!-- Add your description here -->"
+          new_string: "** Automatic pull request**"
+          get_diff: true
+          ignore_users: "dependabot"
+
+

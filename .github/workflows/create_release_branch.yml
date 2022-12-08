@@ -1,0 +1,118 @@
+name: Create release branch!!!
+
+on:
+  workflow_dispatch:
+    # Inputs the workflow accepts.
+    inputs:
+      name:   
+        description: 'Enter sprint number'
+        required: true
+  
+jobs:  
+  get_branch:
+    runs-on: ubuntu-latest
+    outputs:
+      output1: ${{ steps.branch_name.outputs.branch_number }}
+      output2: ${{ steps.new_branch.outputs.branch_name }}
+    env:
+      GITHUB_TOKEN: ${{ secrets.github_token }}
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v3
+        with:
+          repository: ${{github.repository}}.wiki
+
+      - name: get branch name  
+        run: |
+            ls -al
+            var=$(cat Home.textile | grep RELEASE_BRANCH | cut -d":" -f2 )
+            echo "BranchName=$(echo $var)" >> $GITHUB_ENV
+
+      - name: create new branch name
+        run: |
+            echo "${{ env.BranchName}}"
+            name=$(echo ${{ env.BranchName}} | sed 's/release-//')
+            IFS='.' read -r -a tag_array <<< "$name"
+
+            if [[ ${tag_array[1]} == ${{ github.event.inputs.name }} ]]
+            then
+              temp=${tag_array[2]}
+              ((temp=temp+1))
+              echo "${temp}"
+              null_value=0
+              newName="1.${tag_array[1]}.${temp}"
+          
+            else
+              temp=${{ github.event.inputs.name }} 
+              echo "${temp}"
+              null_value=0
+              newName="1.${temp}.${null_value}"
+              
+            fi
+            echo "New Name: ${newName}"
+            echo "${newName}" 
+            echo "::set-output name=branch_number::$(echo ${newName})"
+            echo "Name=$(echo ${newName})"  >> $GITHUB_ENV
+
+      - name: set output
+        id: branch_name
+        run: |
+            echo ${{ env.Name }}
+            echo "::set-output name=branch_number::$(echo ${{ env.Name }})"
+
+            echo "${{ steps.branch_name.outputs.branch_number }}"
+            
+
+
+  create_branch:
+    runs-on: ubuntu-latest
+    needs: get_branch
+    env:
+      GITHUB_TOKEN: ${{ secrets.github_token }}
+    outputs:
+      output1: ${{needs.get_branch.outputs.output1}}
+      
+    steps:      
+      - name: check out code
+        uses: actions/checkout@v3
+        with:
+          ref: develop
+
+      - name: create new branch
+        run: |
+            echo "release-${{needs.get_branch.outputs.output1}}"
+            git checkout -b release-${{needs.get_branch.outputs.output1}}
+            git push origin release-${{needs.get_branch.outputs.output1}}
+
+  
+  push-version-wiki:
+    runs-on: ubuntu-latest
+    needs: create_branch
+    env:
+      GITHUB_TOKEN: ${{ secrets.github_token }}  
+    steps:       
+      - name: checkout repo
+        uses: actions/checkout@v3
+        with:
+          repository: ${{github.repository}}.wiki
+
+
+      - name: generate the version number
+        run: |
+            ls -al
+            cat Home.textile
+            branch_name=$(echo "release-${{needs.create_branch.outputs.output1}}")
+            echo $branch_name
+            var=$(cat Home.textile | grep RELEASE_BRANCH | cut -d":" -f2)
+            echo $var
+            sed -i -e "s/$var/\ ${branch_name}/g" Home.textile
+            cat Home.textile
+      
+       
+      - name: Commit files
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add .
+          git commit -m "Add changes"
+          git push

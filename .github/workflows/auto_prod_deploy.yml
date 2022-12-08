@@ -1,0 +1,231 @@
+name: Deploy to Production!!!
+on: 
+  push:
+    branches: 
+      - master
+
+jobs:
+  create_tag:
+    runs-on: ubuntu-latest
+    outputs:
+      output1: ${{ steps.previous_tag.outputs.tag_version }}
+      output2: ${{ steps.tag.outputs.tag_version }}
+    env:
+      GITHUB_TOKEN: ${{ secrets.github_token }}  
+    steps:       
+      - name: checkout repo
+        uses: actions/checkout@v3
+        with:
+          repository: ${{github.repository}}.wiki
+
+      - name: Upgrade NPM
+        run: npm install -g npm
+
+      - name: generate the version number
+        id: previous_tag
+        run: |
+            ls -al
+            var=$(cat Home.textile | grep PRODUCTION | cut -d":" -f2 )
+            echo $var
+            echo "::set-output name=tag_version::$(echo ${var})"
+     
+
+
+      - name: get pull-request-label
+        id: manual
+        uses: actions-ecosystem/action-get-merged-pull-request@v1.0.1
+        with:
+          github_token: ${{ secrets.github_token }}
+
+      - name: debug tag
+        shell: bash
+        run: |
+           echo "${{ steps.previous_tag.outputs.tag_version }}"
+      
+      - name: create tag name
+        id: tag
+        shell: bash
+        run: |
+            echo "${{ steps.manual.outputs.labels }}"
+            # tag=$(git describe --tags --abbrev=0 | sed 's/v//')
+            version="${{ steps.manual.outputs.labels }}"
+            echo "${{ steps.tag.outputs.tag_version }}"
+            tag=$(echo ${{ steps.previous_tag.outputs.tag_version }} | sed 's/v//')
+            IFS='.' read -r -a tag_array <<< "$tag"
+
+            if [[ "${version}"  == "minor" ]]
+            then
+              temp=${tag_array[1]}
+              ((temp=temp+1))
+              echo "${temp}"
+              null_value=0
+              newTag="v${tag_array[0]}.${temp}.${null_value}"
+              echo "latest-tag=v${tag_array[0]}.${temp}.${null_value}"  >> $GITHUB_ENV
+              echo "::set-output name=tag_version::$(echo ${newTag})"
+            elif [[ "${version}" == "major" ]]
+            then
+              temp=${tag_array[0]}
+              ((temp=temp+1))
+              echo "${temp}"
+              newTag="v${temp}.${tag_array[1]}.${tag_array[2]}"
+              echo "latest-tag=v${temp}.${tag_array[1]}.${tag_array[2]}" >> $GITHUB_ENV
+              echo "::set-output name=tag_version::$(echo ${newTag})"
+            else
+              temp=${tag_array[2]}
+              ((temp=temp+1))
+              echo "${temp}"
+              newTag="v${tag_array[0]}.${tag_array[1]}.${temp}"
+              
+              echo "latest-tag=v${tag_array[0]}.${tag_array[1]}.${temp}" >> $GITHUB_ENV
+              echo "::set-output name=tag_version::$(echo ${newTag})"
+            fi
+
+            echo "New Tag: ${newTag}"
+
+  create_release:
+    needs: create_tag
+    runs-on: ubuntu-latest
+    outputs:
+      output1: ${{needs.create_tag.outputs.output2}}
+    steps: 
+      - name: Checkout code
+        uses: actions/checkout@master
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@latest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
+        with:
+          tag_name: ${{needs.create_tag.outputs.output2}}
+          release_name: Production-${{needs.create_tag.outputs.output2}}
+          draft: false
+          prerelease: false
+
+  deploy-production:
+    runs-on: ubuntu-latest
+    needs: create_release
+    outputs:
+      output1: ${{ needs.create_release.outputs.output1 }}
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: check out code
+        uses: actions/checkout@v3
+
+      - name: deubug
+        run: |
+            echo "${{ needs.create_release.outputs.output1 }}"
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Upgrade NPM
+        run: npm install -g npm
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm run packages:install
+
+      - name: create CLIENT_VERSION and RELEASE [PROD]
+        run: |
+          timestamp=$(date +'%Y%m%d')
+          
+          var=$(cat packages/order-fulfillment/wrangler.toml | grep -A 12 'env.prod.vars' | grep CLIENT_VERSION)
+          sed -i -e "/env.prod.vars/,// s/$var/CLIENT_VERSION = \"${{needs.deploy-production.outputs.output1}}\"/" packages/order-fulfillment/wrangler.toml
+          
+          var=$(cat packages/order-fulfillment/wrangler.toml | grep -A 12 'env.prod.vars' | grep RELEASE)
+          sed -i -e "/env.prod.vars/,// s/$var/RELEASE = \"${timestamp}\"/" packages/order-fulfillment/wrangler.toml
+
+      - name: Deploy to Cloudflare workers [PROD]
+        if: github.ref == 'refs/heads/master'
+        run: npm run packages:publish:prod
+        env:
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+
+
+  push-version-wiki:
+    runs-on: ubuntu-latest
+    needs: deploy-production
+    env:
+      GITHUB_TOKEN: ${{ secrets.github_token }}  
+    steps:       
+      - name: checkout repo
+        uses: actions/checkout@v3
+        with:
+          repository: ${{github.repository}}.wiki
+
+
+      - name: generate the version number
+        run: |
+            ls -al
+            var=$(cat Home.textile | grep PRODUCTION | cut -d":" -f2)
+
+            echo $var
+            sed -i -e "s/$var/\ ${{needs.deploy-production.outputs.output1}}/g" Home.textile
+            head -n 6 Home.textile > tmp.txt; mv tmp.txt Home.textile
+            cat Home.textile
+      
+       
+      - name: Commit files
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add .
+          git commit -m "Add changes"
+          git push
+
+
+  create-pull-request_dev:
+    runs-on: ubuntu-latest
+    needs: push-version-wiki
+    steps:
+
+      - name: check out code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          ref: master
+
+      - name: create a pull request on dev branch
+        uses: devops-infra/action-pull-request@v0.4.2
+        with:
+          github_token: ${{ secrets.REPO_SCOPED_TOKEN }}
+          source_branch: master
+          target_branch: develop
+          title: 'merging changes of production back to develop branch'
+          body: "**Automated pull request**"
+          draft: false
+          old_string: "<!-- Add your description here -->"
+          new_string: "** Automatic pull request**"
+          get_diff: true
+          ignore_users: "dependabot"
+
+  create-pull-request_release:
+    runs-on: ubuntu-latest
+    needs: push-version-wiki
+    steps:
+
+      - name: check out code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          ref: master
+
+      - name: create a pull request on release branch
+        uses: devops-infra/action-pull-request@v0.4.2
+        with:
+          github_token: ${{ secrets.REPO_SCOPED_TOKEN }}
+          source_branch: master
+          target_branch: release
+          title: 'merging changes of production back to release branch'
+          body: "**Automated pull request**"
+          draft: false
+          old_string: "<!-- Add your description here -->"
+          new_string: "** Automatic pull request**"
+          get_diff: true
+          ignore_users: "dependabot"

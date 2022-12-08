@@ -1,0 +1,37 @@
+{
+  "private": true,
+  "name": "kanopi-workers",
+  "version": "1.0.0",
+  "description": "Kanopi Cloudflare workers",
+  "author": "BCG Digital Ventures",
+  "scripts": {
+    "test": "lerna run test",
+    "packages:install": "lerna bootstrap",
+    "packages:publish": "lerna run publish",
+    "packages:publish:dev": "lerna run publish -- --env dev",
+    "packages:publish:sandbox": "lerna run publish -- --env sandbox",
+    "packages:publish:prod": "lerna run publish -- --env prod",
+    "lint": "prettier --check ./packages/**/*.js && eslint ./packages/**/*.js",
+    "format": "prettier --write ./packages/**/*.js && eslint --fix ./packages/**/*.js"
+  },
+  "devDependencies": {
+    "eslint": "^8.29.0",
+    "eslint-plugin-jest": "^27.1.6",
+    "husky": "^4.3.0",
+    "lerna": "^6.1.0",
+    "lint-staged": "^13.1.0",
+    "prettier": "^2.8.1"
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged",
+      "pre-push": "npm test"
+    }
+  },
+  "lint-staged": {
+    "*.js": [
+      "npm run format",
+      "npm run lint"
+    ]
+  }
+}

@@ -1,0 +1,91 @@
+name: Manual rollback production release!!! 
+
+on:
+  workflow_dispatch:
+    # Inputs the workflow accepts.
+    inputs:
+      name:   
+        description: 'Enter Deployment Version'
+        required: true
+      reason:   
+        description: 'Reason for rollback'
+        required: true
+
+jobs:
+  deploy-prod:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [16.x]
+    steps:            
+      - name: downlaod the release
+        uses: robinraju/release-downloader@v1.3
+        with:
+          repository: "boltdv/kanopi-workers"
+          token: ${{ secrets.github_token }}
+          zipBall: true
+          tag: ${{ github.event.inputs.name }}
+
+      - name: Unzip bundle
+        run: |
+            unzip *.zip -d ./code
+
+      - name: check the code
+        run: |
+            cd code/boltdv-kanopi-workers*
+            pwd
+            ls -al
+            dir=`pwd`
+            echo "DIR=$dir" >> $GITHUB_ENV
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Upgrade NPM
+        run: npm install -g npm
+
+      - name: Install dependencies
+        run: |
+          cd ${{ env.DIR }}
+          npm ci
+          npm run packages:install
+
+
+      - name: Deploy to Cloudflare workers [PROD]
+        if: github.ref == 'refs/heads/master'
+        run: |
+            cd ${{ env.DIR }}
+            npm run packages:publish:prod
+        env:
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+
+     
+  push-version-wiki:
+    runs-on: ubuntu-latest
+    needs: deploy-prod
+    env:
+      GITHUB_TOKEN: ${{ secrets.github_token }}  
+    steps:       
+      - name: checkout repo
+        uses: actions/checkout@v3
+        with:
+          repository: ${{github.repository}}.wiki
+
+
+      - name: generate the version number
+        run: |
+            ls -al
+            echo $'\n\nThe production release rolled back to ${{ github.event.inputs.name }} version.\nReason : ${{ github.event.inputs.reason }}' >> Home.textile
+            cat Home.textile
+      
+       
+      - name: Commit files
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add .
+          git commit -m "Add changes"
+          git push

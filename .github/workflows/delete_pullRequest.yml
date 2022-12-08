@@ -1,0 +1,37 @@
+name: Delete Pull Request
+on: 
+  pull_request:
+    branches: 
+      - release
+      - master
+
+jobs:
+  delete-pr:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.pull_request.head.ref  != '**release**' }}
+    steps:        
+      - name: checkout repo
+        uses: actions/checkout@v3
+      - name: get source branch name
+        shell: bash
+        run: |
+            echo "BRANCH_PREFIX=$(echo ${{ github.event.pull_request.head.ref }})" >> $GITHUB_ENV
+            echo "${BRANCH_PREFIX}"
+
+      - name: validate branch name.
+        shell: bash
+        run: |
+            if [[ $BRANCH_PREFIX == *"release"*  || $BRANCH_PREFIX == *"hotfix"* ]]
+            then
+              echo "BRANCH=TRUE"  >> $GITHUB_ENV
+            else
+              echo "BRANCH=FALSE" >> $GITHUB_ENV
+            fi
+
+      - name: Delete PR if wrongly created.
+        if: ${{ env.BRANCH == 'FALSE' }}
+        uses: peter-evans/close-pull@v2
+        with:
+          pull-request-number: ${{ github.event.number }}
+          delete-branch: false
+          comment: "YOU NEED TO CREATE PR FROM RELEASE BRANCHES. FOR EXAMPLE, branch name: release-1.49.1"
