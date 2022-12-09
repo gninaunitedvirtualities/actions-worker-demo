@@ -26,7 +26,7 @@ jobs:
             ls -al
             var=$(cat Home.md | grep SANDBOX| cut -d":" -f2 )
             echo $var
-            echo "::set-output name=tag_version::$(echo ${var})"
+            echo "tag_version=${var}" >> $GITHUB_OUTPUT
 
       - name: create tag name
         id: tag
