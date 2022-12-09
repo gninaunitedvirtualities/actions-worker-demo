@@ -24,7 +24,7 @@ jobs:
         id: previous_tag
         run: |
             ls -al
-            var=$(cat Home.textile | grep SANDBOX| cut -d":" -f2 )
+            var=$(cat Home.md | grep SANDBOX| cut -d":" -f2 )
             echo $var
             echo "::set-output name=tag_version::$(echo ${var})"
 
@@ -46,7 +46,7 @@ jobs:
               echo "${temp}"
               nill_value=0
               newTag="release-v${tag_array[0]}.${temp}.${nill_value}"
-              echo "::set-output name=tag_version::$(echo ${newTag})"
+              echo "tag_version=${newTag}" >> $GITHUB_OUTPUT
             elif [[ "${version}" == "major" ]]
             then
               temp=${tag_array[0]}
@@ -54,7 +54,7 @@ jobs:
               echo "${temp}"
               newTag="release-v${temp}.${tag_array[1]}.${tag_array[2]}"
               # echo "latest-tag=$ENV_PREFIX-v${temp}.${tag_array[1]}.${tag_array[2]}" >> $GITHUB_ENV
-              echo "::set-output name=tag_version::$(echo ${newTag})"
+              echo "tag_version=${newTag}" >> $GITHUB_OUTPUT
             else
               temp=${tag_array[2]}
               ((temp=temp+1))
@@ -62,7 +62,7 @@ jobs:
               newTag="release-v${tag_array[0]}.${tag_array[1]}.${temp}"
               
               # echo "latest-tag=$ENV_PREFIX-v${tag_array[0]}.${tag_array[1]}.${temp}" >> $GITHUB_ENV
-              echo "::set-output name=tag_version::$(echo ${newTag})"
+              echo "tag_version=${newTag}" >> $GITHUB_OUTPUT
             fi
 
             echo "New Tag: ${newTag}"
@@ -110,15 +110,6 @@ jobs:
           npm run packages:install
 
 
-      
-      - name: Deploy to Cloudflare workers [SANDBOX]
-        if: github.ref == 'refs/heads/sandbox'
-        run: npm run packages:publish:sandbox
-        env:
-          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
-          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-
-
   push-version-wiki:
     runs-on: ubuntu-latest
     needs: deploy_sandbox
@@ -136,10 +127,10 @@ jobs:
 
       - name: generate the version number
         run: |
-            var=$(cat Home.textile | grep SANDBOX | cut -d":" -f2)
+            var=$(cat Home.md | grep SANDBOX | cut -d":" -f2)
             echo $var
-            sed -i -e "s/$var/\ ${{needs.deploy_sandbox.outputs.output1}}/g" Home.textile
-            cat Home.textile
+            sed -i -e "s/$var/\ ${{needs.deploy_sandbox.outputs.output1}}/g" Home.md
+            cat Home.md
       
       - name: Commit files
         run: |

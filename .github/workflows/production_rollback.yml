@@ -51,17 +51,6 @@ jobs:
           cd ${{ env.DIR }}
           npm ci
           npm run packages:install
-
-
-      - name: Deploy to Cloudflare workers [PROD]
-        if: github.ref == 'refs/heads/master'
-        run: |
-            cd ${{ env.DIR }}
-            npm run packages:publish:prod
-        env:
-          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
-          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-
      
   push-version-wiki:
     runs-on: ubuntu-latest

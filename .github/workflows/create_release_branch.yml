@@ -25,7 +25,7 @@ jobs:
       - name: get branch name  
         run: |
             ls -al
-            var=$(cat Home.textile | grep RELEASE_BRANCH | cut -d":" -f2 )
+            var=$(cat Home.md | grep RELEASE_BRANCH | cut -d":" -f2 )
             echo "BranchName=$(echo $var)" >> $GITHUB_ENV
 
       - name: create new branch name
@@ -51,15 +51,14 @@ jobs:
             fi
             echo "New Name: ${newName}"
             echo "${newName}" 
-            echo "::set-output name=branch_number::$(echo ${newName})"
+            echo "branch_number=${newName}" >> $GITHUB_OUTPUT
             echo "Name=$(echo ${newName})"  >> $GITHUB_ENV
 
       - name: set output
         id: branch_name
         run: |
             echo ${{ env.Name }}
-            echo "::set-output name=branch_number::$(echo ${{ env.Name }})"
-
+            echo "branch_number=${{ env.Name }}" >> $GITHUB_OUTPUT
             echo "${{ steps.branch_name.outputs.branch_number }}"
             
 
@@ -100,13 +99,13 @@ jobs:
       - name: generate the version number
         run: |
             ls -al
-            cat Home.textile
+            cat Home.md
             branch_name=$(echo "release-${{needs.create_branch.outputs.output1}}")
             echo $branch_name
-            var=$(cat Home.textile | grep RELEASE_BRANCH | cut -d":" -f2)
+            var=$(cat Home.md | grep RELEASE_BRANCH | cut -d":" -f2)
             echo $var
-            sed -i -e "s/$var/\ ${branch_name}/g" Home.textile
-            cat Home.textile
+            sed -i -e "s/$var/\ ${branch_name}/g" Home.md
+            cat Home.md
       
        
       - name: Commit files
