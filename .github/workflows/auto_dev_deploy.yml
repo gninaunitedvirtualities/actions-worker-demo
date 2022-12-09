@@ -47,9 +47,9 @@ jobs:
             echo "Env Name: ${{ needs.deploy-dev.outputs.output1 }}"
             git_hash=$(git rev-parse --short "$GITHUB_SHA")
             timestamp=$(date +'%Y-%m-%d')
-            var=$(cat Home.textile | grep DEV | cut -d":" -f2)
-            sed -i -e "s/$var/\ $git_hash-${timestamp}/g" Home.textile
-            cat Home.textile
+            var=$(cat Home.md | grep DEV | cut -d":" -f2)
+            sed -i -e "s/$var/\ $git_hash-${timestamp}/g" Home.md
+            cat Home.md
       
        
       - name: Commit files
