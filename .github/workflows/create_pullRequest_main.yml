@@ -5,6 +5,7 @@ on:
     # Inputs the workflow accepts.
     inputs:
       title:
+        description: 'title'
         required: true
       version:   
         description: 'Enter release version label'
@@ -19,6 +20,16 @@ jobs:
   create_pull_request:
     runs-on: ubuntu-latest
     steps:
+      - name: debug UPPER
+        shell: bash
+        run: |
+           echo GITHUB_TOKEN
+           echo "${{ secrets.GITHUB_TOKEN }}"
+      - name: debug LOWER
+        shell: bash
+        run: |
+           echo github_token
+           echo "${{ secrets.github_token }}"
       - uses: actions/checkout@v3
       - name: pull-request
         uses: repo-sync/pull-request@v2
